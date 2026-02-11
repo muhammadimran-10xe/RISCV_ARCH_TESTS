@@ -1,0 +1,172 @@
+
+./logs/test.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+80000000 <_start>:
+80000000:	00000f97          	auipc	t6,0x0
+80000004:	01cf8f93          	addi	t6,t6,28 # 8000001c <trap_vector>
+80000008:	305f9073          	csrw	mtvec,t6
+8000000c:	00000f17          	auipc	t5,0x0
+80000010:	1f4f0f13          	addi	t5,t5,500 # 80000200 <begin_signature>
+80000014:	028000ef          	jal	8000003c <pmp_config>
+80000018:	0b00006f          	j	800000c8 <main>
+
+8000001c <trap_vector>:
+8000001c:	342022f3          	csrr	t0,mcause
+80000020:	00129293          	slli	t0,t0,0x1
+80000024:	0012d293          	srli	t0,t0,0x1
+80000028:	00800313          	li	t1,8
+8000002c:	00900393          	li	t2,9
+80000030:	12628663          	beq	t0,t1,8000015c <u_trap_handler>
+80000034:	16728263          	beq	t0,t2,80000198 <s_trap_handler>
+80000038:	1900006f          	j	800001c8 <fail>
+
+8000003c <pmp_config>:
+8000003c:	00000297          	auipc	t0,0x0
+80000040:	fc428293          	addi	t0,t0,-60 # 80000000 <_start>
+80000044:	00001337          	lui	t1,0x1
+80000048:	fff30313          	addi	t1,t1,-1 # fff <TOR_SECTION_END+0xffb>
+8000004c:	0022d293          	srli	t0,t0,0x2
+80000050:	0062e2b3          	or	t0,t0,t1
+80000054:	3b029073          	csrw	pmpaddr0,t0
+80000058:	00000397          	auipc	t2,0x0
+8000005c:	1b038393          	addi	t2,t2,432 # 80000208 <pmpcfg_byte>
+80000060:	00038383          	lb	t2,0(t2)
+80000064:	01f00293          	li	t0,31
+80000068:	0053e2b3          	or	t0,t2,t0
+8000006c:	3a029073          	csrw	pmpcfg0,t0
+80000070:	00400293          	li	t0,4
+80000074:	0022d293          	srli	t0,t0,0x2
+80000078:	3b129073          	csrw	pmpaddr1,t0
+8000007c:	00000397          	auipc	t2,0x0
+80000080:	18c38393          	addi	t2,t2,396 # 80000208 <pmpcfg_byte>
+80000084:	00038383          	lb	t2,0(t2)
+80000088:	00c00293          	li	t0,12
+8000008c:	0053e2b3          	or	t0,t2,t0
+80000090:	00829293          	slli	t0,t0,0x8
+80000094:	3a0023f3          	csrr	t2,pmpcfg0
+80000098:	0053e3b3          	or	t2,t2,t0
+8000009c:	3a039073          	csrw	pmpcfg0,t2
+800000a0:	00000293          	li	t0,0
+800000a4:	00001337          	lui	t1,0x1
+800000a8:	fff30313          	addi	t1,t1,-1 # fff <TOR_SECTION_END+0xffb>
+800000ac:	0022d293          	srli	t0,t0,0x2
+800000b0:	0062e2b3          	or	t0,t0,t1
+800000b4:	3b229073          	csrw	pmpaddr2,t0
+800000b8:	01900393          	li	t2,25
+800000bc:	00839393          	slli	t2,t2,0x8
+800000c0:	3a039073          	csrw	pmpcfg0,t2
+800000c4:	00008067          	ret
+
+800000c8 <main>:
+800000c8:	00000013          	nop
+800000cc:	00000013          	nop
+800000d0:	00000013          	nop
+800000d4:	00000013          	nop
+800000d8:	00000013          	nop
+800000dc:	00000013          	nop
+800000e0:	00000013          	nop
+800000e4:	00000013          	nop
+800000e8:	00000013          	nop
+800000ec:	00000013          	nop
+800000f0:	00000013          	nop
+800000f4:	00000013          	nop
+800000f8:	00000013          	nop
+800000fc:	00000013          	nop
+80000100:	00000293          	li	t0,0
+80000104:	00c000ef          	jal	80000110 <switch_mode>
+80000108:	00500313          	li	t1,5
+8000010c:	0d80006f          	j	800001e4 <write_tohost>
+
+80000110 <switch_mode>:
+80000110:	00008f93          	mv	t6,ra
+80000114:	300022f3          	csrr	t0,mstatus
+80000118:	00300313          	li	t1,3
+8000011c:	00b31313          	slli	t1,t1,0xb
+80000120:	fff34313          	not	t1,t1
+80000124:	0062f2b3          	and	t0,t0,t1
+80000128:	00100e13          	li	t3,1
+8000012c:	00050663          	beqz	a0,80000138 <switch_mode+0x28>
+80000130:	03c50063          	beq	a0,t3,80000150 <switch_mode+0x40>
+80000134:	0940006f          	j	800001c8 <fail>
+80000138:	00100313          	li	t1,1
+8000013c:	00b31313          	slli	t1,t1,0xb
+80000140:	0062e2b3          	or	t0,t0,t1
+80000144:	341f9073          	csrw	mepc,t6
+80000148:	30029073          	csrw	mstatus,t0
+8000014c:	30200073          	mret
+80000150:	341f9073          	csrw	mepc,t6
+80000154:	30029073          	csrw	mstatus,t0
+80000158:	30200073          	mret
+
+8000015c <u_trap_handler>:
+8000015c:	341023f3          	csrr	t2,mepc
+80000160:	00438393          	addi	t2,t2,4
+80000164:	34139073          	csrw	mepc,t2
+80000168:	300022f3          	csrr	t0,mstatus
+8000016c:	00b2de13          	srli	t3,t0,0xb
+80000170:	003e7e13          	andi	t3,t3,3
+80000174:	01cf0123          	sb	t3,2(t5)
+80000178:	ffffe337          	lui	t1,0xffffe
+8000017c:	7ff30313          	addi	t1,t1,2047 # ffffe7ff <_sstack+0x7fff87ff>
+80000180:	0062f2b3          	and	t0,t0,t1
+80000184:	00001337          	lui	t1,0x1
+80000188:	80030313          	addi	t1,t1,-2048 # 800 <TOR_SECTION_END+0x7fc>
+8000018c:	0062e2b3          	or	t0,t0,t1
+80000190:	30029073          	csrw	mstatus,t0
+80000194:	30200073          	mret
+
+80000198 <s_trap_handler>:
+80000198:	341023f3          	csrr	t2,mepc
+8000019c:	00438393          	addi	t2,t2,4
+800001a0:	34139073          	csrw	mepc,t2
+800001a4:	300022f3          	csrr	t0,mstatus
+800001a8:	00b2de13          	srli	t3,t0,0xb
+800001ac:	003e7e13          	andi	t3,t3,3
+800001b0:	01cf00a3          	sb	t3,1(t5)
+800001b4:	00002337          	lui	t1,0x2
+800001b8:	80030313          	addi	t1,t1,-2048 # 1800 <TOR_SECTION_END+0x17fc>
+800001bc:	0062e2b3          	or	t0,t0,t1
+800001c0:	30029073          	csrw	mstatus,t0
+800001c4:	30200073          	mret
+
+800001c8 <fail>:
+800001c8:	00000317          	auipc	t1,0x0
+800001cc:	03c30313          	addi	t1,t1,60 # 80000204 <base>
+800001d0:	00032183          	lw	gp,0(t1)
+800001d4:	00001297          	auipc	t0,0x1
+800001d8:	e2c28293          	addi	t0,t0,-468 # 80001000 <tohost>
+800001dc:	0032a023          	sw	gp,0(t0)
+800001e0:	fe9ff06f          	j	800001c8 <fail>
+
+800001e4 <write_tohost>:
+800001e4:	00100193          	li	gp,1
+800001e8:	00001297          	auipc	t0,0x1
+800001ec:	e1828293          	addi	t0,t0,-488 # 80001000 <tohost>
+800001f0:	0032a023          	sw	gp,0(t0)
+800001f4:	ff1ff06f          	j	800001e4 <write_tohost>
+800001f8:	00000013          	nop
+800001fc:	00000013          	nop
+
+80000200 <begin_signature>:
+80000200:	00000000          	.word	0x00000000
+
+80000204 <base>:
+80000204:	cafebeef          	.word	0xcafebeef
+
+80000208 <pmpcfg_byte>:
+80000208:	00                	.byte	0x00
+80000209:	00                	.byte	0x00
+8000020a:	0001                	.insn	2, 0x0001
+8000020c:	00000013          	nop
+80000210:	00000013          	nop
+80000214:	00000013          	nop
+80000218:	00000013          	nop
+8000021c:	00000013          	nop
+80000220:	00000013          	nop
+80000224:	00000013          	nop
+80000228:	00000013          	nop
+8000022c:	00000013          	nop
+80000230:	00000013          	nop
