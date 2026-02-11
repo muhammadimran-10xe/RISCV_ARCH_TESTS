@@ -1,20 +1,7 @@
-# RISC-V Privilege Mode Switching Test (Task 1)
+# RISC-V S-Mode Exception Delegation Test (Task 3)
 
 ## Overview
-This task implements and verifies RISC-V privilege mode transitions using assembly language and the Spike ISS.  
-The test starts in Machine mode (M-mode), installs an M-mode trap handler, and demonstrates controlled switching between Machine (M), Supervisor (S), and User (U)modes using standard RISC-V CSRs and return instructions.
-
----
-
-## Objectives
-- Start execution in **Machine mode**
-- Implement a function to switch to **Supervisor (a0=0)** or **User (a0=1)** mode (callable only from M-mode)
-- Install an **M-mode trap handler**
-- Handle:
-  - `ECALL` from U-mode → return to S-mode
-  - `ECALL` from S-mode → return to M-mode
-- Verify current privilege mode
-- Exit cleanly from M-mode using `tohost`
+This task implements and verifies exception delegation and privilege-level trap handling in a RISC-V processor using assembly language and the Spike ISA simulator.
 
 ---
 
@@ -48,10 +35,14 @@ make debug
 ### Clean Generated files
 make clean
 
+### clean build and run on Spike
+
+make all
+
 ## Reference
 
-The RISC-V Instruction Set Manual, Volume II: Privileged Architecture
+The RISC-V Instruction Set Manual, Volume II: Privileged Architecture Sec 3.1.8
 
 ## Author
 Muhammad Imran
-Task 1 – RISC-V Privilege Mode Switching
+Task 3 – RISC-V Trap Delegation to S-Mode
