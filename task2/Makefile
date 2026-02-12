@@ -21,6 +21,9 @@ run:
 debug:
 	@spike --isa=rv32i -d ./logs/test.elf
 
+read_elf:
+	@$(TOOLCHAIN)-readelf -S ./logs/test.elf
+
 clean:
 	@rm -f ./logs/*
 
