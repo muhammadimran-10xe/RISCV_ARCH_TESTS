@@ -1,0 +1,80 @@
+
+./logs/test.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+80000000 <main>:
+80000000:	000022b7          	lui	t0,0x2
+80000004:	3002a073          	csrs	mstatus,t0
+80000008:	30002373          	csrr	t1,mstatus
+8000000c:	01f35393          	srli	t2,t1,0x1f
+80000010:	06039663          	bnez	t2,8000007c <fail>
+80000014:	30002373          	csrr	t1,mstatus
+80000018:	000062b7          	lui	t0,0x6
+8000001c:	fff2c293          	not	t0,t0
+80000020:	00537333          	and	t1,t1,t0
+80000024:	000042b7          	lui	t0,0x4
+80000028:	00536333          	or	t1,t1,t0
+8000002c:	30031073          	csrw	mstatus,t1
+80000030:	300023f3          	csrr	t2,mstatus
+80000034:	01f3d393          	srli	t2,t2,0x1f
+80000038:	04039263          	bnez	t2,8000007c <fail>
+8000003c:	f00000d3          	fmv.w.x	ft1,zero
+80000040:	30002373          	csrr	t1,mstatus
+80000044:	01f35393          	srli	t2,t1,0x1f
+80000048:	02038a63          	beqz	t2,8000007c <fail>
+8000004c:	00d35e13          	srli	t3,t1,0xd
+80000050:	003e7e13          	andi	t3,t3,3
+80000054:	00300e93          	li	t4,3
+80000058:	03de1263          	bne	t3,t4,8000007c <fail>
+8000005c:	03c0006f          	j	80000098 <write_tohost>
+
+80000060 <illigal_inst_handler>:
+80000060:	34102373          	csrr	t1,mepc
+80000064:	00430313          	addi	t1,t1,4
+80000068:	34131073          	csrw	mepc,t1
+8000006c:	000e8383          	lb	t2,0(t4)
+80000070:	00138393          	addi	t2,t2,1
+80000074:	007ea023          	sw	t2,0(t4)
+80000078:	30200073          	mret
+
+8000007c <fail>:
+8000007c:	00003317          	auipc	t1,0x3
+80000080:	f8430313          	addi	t1,t1,-124 # 80003000 <base>
+80000084:	00032183          	lw	gp,0(t1)
+80000088:	00001297          	auipc	t0,0x1
+8000008c:	f7828293          	addi	t0,t0,-136 # 80001000 <tohost>
+80000090:	0032a023          	sw	gp,0(t0)
+80000094:	fe9ff06f          	j	8000007c <fail>
+
+80000098 <write_tohost>:
+80000098:	00100193          	li	gp,1
+8000009c:	00001f17          	auipc	t5,0x1
+800000a0:	f63f2223          	sw	gp,-156(t5) # 80001000 <tohost>
+800000a4:	ff5ff06f          	j	80000098 <write_tohost>
+800000a8:	00000013          	nop
+800000ac:	00000013          	nop
+800000b0:	00000013          	nop
+800000b4:	00000013          	nop
+800000b8:	00000013          	nop
+800000bc:	00000013          	nop
+800000c0:	00000013          	nop
+800000c4:	00000013          	nop
+
+Disassembly of section .text:
+
+80002000 <_start>:
+80002000:	00000297          	auipc	t0,0x0
+80002004:	01828293          	addi	t0,t0,24 # 80002018 <trap_vector>
+80002008:	30529073          	csrw	mtvec,t0
+8000200c:	00001e97          	auipc	t4,0x1
+80002010:	004e8e93          	addi	t4,t4,4 # 80003010 <begin_signature>
+80002014:	fedfd06f          	j	80000000 <main>
+
+80002018 <trap_vector>:
+80002018:	34202f73          	csrr	t5,mcause
+8000201c:	00200293          	li	t0,2
+80002020:	01e29463          	bne	t0,t5,80002028 <trap_vector+0x10>
+80002024:	83cfe06f          	j	80000060 <illigal_inst_handler>
+80002028:	854fe06f          	j	8000007c <fail>

@@ -42,7 +42,7 @@ trap_vector:
     j fail             /* if trap cause is unexpected, jump to unknown_trap */
 /* configure .text.init regions as NAPOT with execute permission */
 pmp_config:
-    # --- configure .text.init as NAPOT with RX ---
+    # --- configure .text.init as TOR with RX ---
     la   t0, .text.init        # load base address of .text.init
     srli t0, t0, 2
     csrw pmpaddr0, t0          
