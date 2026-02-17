@@ -1,13 +1,13 @@
-# RISC-V mstatus.FS field behaviour verification Test (Task 4)
+# RISC-V VM sv-32 paging test (Task 5)
 
 ## Overview
-this test verifies the correct behavior of the mstatus.FS (Floating-Point Status) field and the mstatus.SD (State Dirty) bit in Machine mode of the RISC-V privileged architecture specification.
+This test verifies the correct implementation of RISC-V Virtual Memory paging, specifically the address translation mechanism using page tables. The objective of the test is to confirm that when virtual memory is enabled (via the satp register), instruction fetches, loads, and stores go through proper virtual-to-physical address translation according to the configured paging mode Sv32.
 
 ---
 
 ## File Structure
 ├── docs/
-| ├── muhammdimran_task4.pdf
+| ├── muhammdimran_task5.pdf
 ├── src/
 │ ├── test.S # Main assembly test
 │ └── link.ld # Linker script
@@ -31,7 +31,7 @@ make run
 ### Debug on Spike
 make debug
 
-### Read ELF file
+### To read the test.elf file
 make read_elf
 
 ### Clean Generated files
@@ -43,8 +43,8 @@ make all
 
 ## Reference
 
-Extension Context Status in mstatus Register: RISCV Privileged Architecture v1.12, 3.1.6.6
+Sv32: Page-Based 32-bit Virtual-Memory Systems, Volume II: Privileged Architecture Sec 4.3
 
 ## Author
 Muhammad Imran
-Task 4 – RISC-V mstatus.FS field behaviour verification test
+Task 5 – RISC-V VM SV-32 Paging Scheme Test

@@ -9,136 +9,149 @@
         .align  6;                                                      \
         .global _start;  
 
-.section .tor_section
-tor:
-    nop
-    ret
+.section .root_pt;
+.align 12
+.global root; 
+root: .space 4096
 
-.section .napot_section
-napot:
-    .word 0x0
+.section .leaf_pt;
+.align 12
+.global leaf; 
+leaf: .space 4096
+
+.section .test, "aw", @progbits;    # page with RWX permissions
+.align 12
+test: 
+    li t0, 5
+    la t1, test
+    li t2, 0xdddddddd
+    sw t2, 0(t1)
+    ret
 
 RVTEST_CODE_BEGIN                         
 _start:                                 
-    # la sp, _sstack           /* initialized the stack */
     la t6, trap_vector       /* trap handler runs in M-mode/No delegation is used */
     csrw mtvec, t6           /* set mtvec to point to trap_vector */
-    jal pmp_config
+
     j main                   /* jump to main test code */
     
 trap_vector:                               
     csrr t0, mcause            /* read mcause to determine the cause of the trap */
     li t1, 8                   /* ECALL from U-mode mcause = 8 */
     li t2, 9                   /* ECALL from S-mode mcause =  9 */
-    li t3, 5                   /* Load Access Fault */
-    li t4, 7                   /* Store Access Fault */
-    li t5, 1                   /* instruction access fault */
+    li t3, 13                   /* Load Page Fault */
+    li t4, 15                   /* Store page Fault */
+    li t6, 12                  /* instruction page fault */
     beq t0, t1, u_trap_handler     /* if ECALL from U-mode, jump to handle_ecall_u */
     beq t0, t2, s_trap_handler     /* if ECALL from S-mode, jump to handle_ecall_s */
-    beq t0, t3, read_handler       
-    beq t0, t4, write_handler
-    beq t0, t5, execute_handler
+    beq t0, t6, inst_page_fault_handler
+    beq t0, t3, load_page_fault_handler
+    beq t0, t4, store_page_fault_handler
 
     j fail             
-/* initialli i have given all permission to this memory region 
-    after switching to the supervisor mode when code tried to exit by wrting tohost
-    it writes to .data section which is not configured so it give store access fault
-    configured the region with NAPOT later i found out that when PMP is enabled we 
-    to configure all the regions */
-pmp_config:
-    # --- configure region above the .text.init as TOR with RX ---
-    la   t0, .text.init        # load base address of .text.init
-    srli t0, t0, 2
-    csrw pmpaddr0, t0          
+/* a0 = VA, a1 = PA, a2 = permissions, a3 = 0(leaf)/1(root) */ 
+pte_setup:
+    # extract ppn from satp
+    csrr s1, satp
+    li s2, 0x3fffff
+    and s1, s1, s2
+    slli s1, s1, 12
 
-    li t0, 0x00                # MARK this region OFF
-    csrw pmpcfg0, t0
+    srli t0, a0, 12          # discard page offset from VA
+    andi t1, t0, 0x3ff       # extract VA[0]
+    srli t2, t0, 10          # extract VA[1]
 
-    # TOR region with all permissions
-    la t0, _end
-    srli t0, t0, 2
-    csrw pmpaddr1, t0
+    srli t0, a1, 12          # extract PPN
+    slli t0, t0, 10          # make space form permissions
+    or t0, t0, a2            # add permissions
+    ori t0, t0, 1            # make it valid
 
-    li t1, 0x0f             #   pmp1cfg = 0b00001111
-    slli t1, t1, 8
-    csrr t0, pmpcfg0
-    or t0, t0, t1
-    csrw pmpcfg0, t0
-
-    # --- configure TOR_SECTION as TOR with X ---
-    la t0, _tor_end
-    srli t0, t0, 2
-    csrw pmpaddr2, t0
-
-    li t1, 0x0c       #   pmp2cfg = 0b00001100
-    slli t1, t1, 16
-    csrr t0, pmpcfg0
-    or t0, t0, t1
-    csrw pmpcfg0, t0
-
-    # # --- configure NAPOT_SECTION as NAPOT with R ---
-    la t0, .napot_section
-    li   t1, 0x1FF
-    srli t0, t0, 2
-    or   t0, t0, t1
-    csrw pmpaddr3, t0  
-
-    li t2, 0x19           # pmp3cfg = 0b00011001
-    slli t2, t2, 24
-    csrr t0, pmpcfg0
-    or t0, t0, t2
-    csrw pmpcfg0, t0
-
-    # setting lock bit for TOR and NAPOT regions
-    li t1, 0x8080                             # 2 bytes each byte has msb set
-    slli t1, t1, 16
-    csrr t0, pmpcfg0
-    or t0, t0, t1
-    csrw pmpcfg0, t0
-
+    beqz a3, _leaf
+    slli t2, t2, 2            # index * 4
+    add  t3, s1, t2           # satp.ppn + VP[1]
+    sw   t0, 0(t3)            # write to root PT
     ret
+_leaf:
+    slli t2, t2, 2             # index * 4
+    add  t3, s1, t2    
+    lw t4, 0(t3)               # get leaf page table from root page table entry
+    srli t4, t4, 10
+    slli t4, t4, 12
+    slli t1, t1, 2             # index * 4
+    add  t4, t4, t1
+    sw   t0, 0(t4)            # write to leaf PT
+    ret                       
 
 main:
+    la t0, root
+    srli t0, t0, 12
+    csrw satp,t0               #setup satp.ppn bits
     .align 6
-    li t0, 0
-    jal switch_mode          # switched to supervisor mode
+    # setup root page table entry with leaf page table base address
+    la   a0, test              
+    la   a1, leaf
+    li   a2, 0                       # no RWX for pointer
+    li   a3, 1                       # root level
+    jal  pte_setup
+    # setup test section page in leaf PTE
+    la a0, test
+    la a1, test
+    li a2, 0xce                #  setting A, D and  RWX permissions
+    li a3, 0
+    jal pte_setup
+    # setup .text.init section page in leaf PTE
+    la a0, .text.init
+    la a1, .text.init
+    li a2, 0xce                #  setting A, D and  RWX permissions
+    li a3, 0
+    jal pte_setup
+    # setup root page table section page in leaf PTE
+    la a0, root
+    la a1, root
+    li a2, 0xce
+    li a3, 0
+    jal pte_setup
+    # setup leaf page table section page in leaf PTE
+    la a0, leaf
+    la a1, leaf
+    li a2, 0xce
+    li a3, 0
+    jal pte_setup
+    # enable virtualizaion 
+    csrr t0,satp
+    li t1, (1 << 31)
+    or t0, t0, t1
+    csrw satp, t0
+    sfence.vma                  # Flush TLB caches
+    # switch to S-mode
+    li a0, 0
+    jal switch_mode
+    jal test
 
-    # READ WRITE and EXECUTE from TOR REGION
-    la t0, tor
-    lw t1, 0(t0)               # read/load access exception
-    li t2, 5
-    la t0, tor
-    sw t2, 4(t0)               # write/store access exception
-    jal tor                      # execute access exception
+    la a0, test
+    la a1, test
+    li a2, 0xc0                #  setting A, D and  NO RWX permissions
+    li a3, 0
+    jal pte_setup
+    # check execute permissions
+    jal test   
+    # check Read permissions                
+load_inst:
+    la t0, test
+    lw t1, 0(t0)
+    # check write permissions
+    li t1, 0x3
+    not t2, t1
+    and t0, t0, t2
+    sw t1, 32(t0)
 
-    # READ WRITE and EXECUTE from NAPOT REGION
-    la t0, napot
-    lw t1, 0(t0)               # read/load access exception
-    li t2, 5
-    la t0, napot
-    sw t2, 4(t0)               # write/store access exception
-    jal napot                      # execute access exception
-
-    # going beck to machine mode
-    ecall
-
-    #
-    # jal tor                      # successfully jump and execute if not locked
-
-    # READ WRITE and EXECUTE from TOR REGION
-    la t0, tor
-    lw t1, 0(t0)               # read/load access exception
-    li t2, 5
-    la t0, tor
-    sw t2, 4(t0)               # write/store access exception
-    jal tor                      # execute access exception
-
+    ecall                      # exit in M-mode
     j write_tohost            
 
 switch_mode:
-    mv t6, ra                  /* save return address in t6 */
+    mv t6, ra                 
     csrr t0, mstatus         
-    li t1, 3                /* mask = 0b11 */
+    li t1, 3                
     slli t1, t1, 11         /* shift to bits 11:12 */
     not t1, t1              /* invert to create clear mask */
     and t0, t0, t1          /* clear MPP bits */
@@ -191,7 +204,6 @@ s_trap_handler:
     csrr    t0, mstatus       /* Read mstatus */
     srli    t3, t0, 11
     andi    t3, t3, 3
-    # sb      t3, 1(t5)         /* Store previous privilege (MPP) */
 
     li      t1, (3 << 11)
     or      t0, t0, t1      
@@ -200,27 +212,37 @@ s_trap_handler:
     mret
 /* skip the faulty instruction and write mcasue code to signature file */
 read_handler:
-    csrr    t2, mepc          /* Skip the ECALL */
+    csrr    t2, mepc          
     addi    t2, t2, 4
     csrw    mepc, t2
     mret
 /* skip the faulty instruction and write mcasue code to signature file */
 write_handler:
-    csrr    t2, mepc          /* Skip the ECALL */
+    csrr    t2, mepc          
     addi    t2, t2, 4
     csrw    mepc, t2
     mret
-/* skip the faulty instruction and write mcasue code to signature file */
-execute_handler:
-    # csrr    t2, mepc          /* Skip the ECALL */
-    # addi    t2, t2, 4
-    csrw    mepc, ra
+
+inst_page_fault_handler:
+    la t2, load_inst
+    csrw    mepc, t2
     mret
+load_page_fault_handler:
+    csrr    t2, mepc          
+    addi    t2, t2, 4
+    csrw    mepc, t2
+    mret
+store_page_fault_handler:
+    csrr    t2, mepc          
+    addi    t2, t2, 4
+    csrw    mepc, t2
+    mret
+
 fail:
     la t1, base
     lw gp, 0(t1)
     la t0, tohost
-    sw gp, 0(t0)              /* write to tohost 0xdeadbeef on failure*/
+    sw gp, 0(t0)              /* write to tohost 0xcafebeef on failure*/
     j fail
   
 write_tohost:
@@ -232,4 +254,4 @@ write_tohost:
 
 RVTEST_DATA_BEGIN
 base:
-.word 0xcafebeef      
+.word 0xcafebeef     
