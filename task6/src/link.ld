@@ -12,16 +12,4 @@ SECTIONS
   .data : { *(.data) }
   .bss : { *(.bss) }
   _end = .;
-  .tor_section : {
-  . = ALIGN(0x1000);
-    _tor_start = .;
-    *(.tor_section)
-    _tor_end = .;
-  }
-   . = ALIGN(0x1000);
-  .napot_section : { 
-    _napot_start = .;
-    *(.napot_section) 
-        _napot_end = .; }
-
 }
