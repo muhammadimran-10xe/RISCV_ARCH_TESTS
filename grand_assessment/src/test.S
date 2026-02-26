@@ -1,354 +1,9 @@
-# #define RVTEST_DATA_BEGIN                                               \
-#         .pushsection .tohost,"aw",@progbits;                            \
-#         .align 6; .global tohost; tohost: .dword 0; .size tohost, 8;    \
-#         .align 6; .global fromhost; fromhost: .dword 0; .size fromhost, 8;\
-#         .popsection;  
-
-# #define RVTEST_CODE_BEGIN                                               \
-#         .section .text.init;                                            \
-#         .align  6;                                                      \
-#         .global _start;  
-
-
-# RVTEST_CODE_BEGIN                         
-# _start:        
-#     la t6, m_trap_vector       /* trap handler runs in M-mode/No delegation is used */
-#     csrw mtvec, t6             /* set mtvec to point to trap_vector */
-#     jal trap_setup  
-#     # exception delegation 
-#     # bits 8(uecall), 10(VS ecall), 12(inst p-fault), 13(load_p-fault), 15(store p-fault) set 
-#     li t0, 0xb500           
-#     csrw medeleg, t0
-#     #Initialize hgatp for G-stage translation
-#     la t0, Root_Page_Table_H
-#     srli t0, t0, 12
-#     li   t1, (8 << 60)     # Sv39x4
-#     or   t0, t0, t1
-#     csrw hgatp, t0
-#     hfence.gvma
-
-#     j main
-    
-
-# m_trap_vector:                               
-#     csrr t0, mcause            /* read mcause to determine the cause of the trap */
-#     li t1, 9
-#     bne t0, t1, fail
-#     csrr t2, mepc
-#     addi t2, t2, 4
-#     csrw mepc, t2
-#     mret         
-
-# hs_trap_vector:
-#     csrr t0, scause
-#     li t1, 8                  # VU-mode ecall scause
-#     li t2, 10
-#     beq t0, t2, hs_mode_exit
-#     bne t0, t1, fail
-
-#     # Set hstatus.SPVP=0 (Virtual Privilege for HLV/HSV is User)
-#     li t1, 0x100              # SPVP is bit 8 of hstatus
-#     csrr t2, hstatus
-#     or t1, t1, t2
-#     csrw hstatus, t1
-
-#     # Use HLV.WU to read from guest memory address in a0
-#     # .insn is used if your assembler doesn't support the H-extension mnemonics yet
-#     hlv.wu t2, (a0)           # t2 = [a0] (Guest memory)   (only supported in rv64)
-
-#     # Modify value: add 0x100
-#     li t3, 0x100
-#     add t2, t2, t3            # 0xDEADBEEF + 0x100 = 0xDEADBFEF
-
-#     # Use HSV.W to write back
-#     hsv.w t2, (a0)
-
-#     # Set sepc to VS verification code (skip the ecall in VU)
-#     la t0, vs_verify
-#     csrw sepc, t0
-
-#     # Set sstatus.SPP=1, keep hstatus.SPV=1 to return to VS-mode
-#     li t0, 0x100
-#     csrs sstatus, t0
-#     li t0, 0x80
-#     csrs hstatus, t0
-
-#     sret                      # Return to VS-mode (vs_verify)
-# main:
-#     .align 6
-#     # Host root PTE setup
-#     la a0, vs_mode
-#     la a1, Level_one_Page_Table_H
-#     li a2, 0x00
-#     li a3, 2
-#     li a4, 0                  # Host PTE setup
-#     jal pte_setup
-
-#     # Host L1 PTE setup
-#     la a0, vs_mode
-#     la a1, Level_zero_Page_Table_H
-#     li a2, 0x00
-#     li a3, 1
-#     li a4, 0                  # Host PTE setup
-#     jal pte_setup
-
-#     # Host L0 PTE setup
-#     la a0, vs_mode
-#     la a1, vs_mode
-#     li a2, 0xde
-#     li a3, 0
-#     li a4, 0                  # Host PTE setup
-#     jal pte_setup
-
-#     # Host L0 PTE setup
-#     la a0, vu_mode
-#     la a1, vu_mode
-#     li a2, 0xde
-#     li a3, 0
-#     li a4, 0                  # Host PTE setup
-#     jal pte_setup
-
-#     # Guest root PTE setup
-#     la a0, Root_Page_Table_G
-#     la a1, Root_Page_Table_G
-#     li a2, 0xde
-#     li a3, 0
-#     li a4, 0                  # guest PTE setup
-#     jal pte_setup    # Guest root PTE setup
-
-#   # Guest L1 PTE setup
-#     la a0, Level_one_Page_Table_G
-#     la a1, Level_one_Page_Table_G
-#     li a2, 0xde
-#     li a3, 0
-#     li a4, 0                  # guest PTE setup
-#     jal pte_setup
-
-#     # Guest L0 PTE setup
-#     la a0, Level_zero_Page_Table_G
-#     la a1, Level_zero_Page_Table_G
-#     li a2, 0xde
-#     li a3, 0
-#     li a4, 0                  # guest PTE setup
-#     jal pte_setup
-
-#     jal switch_hs
-# # switch to HS mode
-# switch_hs:
-#     li t0, 0x00000800         # set MPP
-#     csrs mstatus, t0
-#     la t0, hs_mode
-#     csrw mepc, t0
-#     mret                    # Jump to HS-mode
-
-# # HS mode
-# hs_mode:
-#     la t0, hs_trap_vector
-#     csrw stvec, t0
-#     # Setup vsatp for guest first-stage 
-#     la t0, Root_Page_Table_G
-#     srli t0, t0, 12
-#     li t1, (8 << 60)
-#     or t0, t0, t1
-#     csrw vsatp, t0
-#     hfence.vvma               # Flush VS-stage TLB
-
-#     # Host root PTE setup
-#     la a0, vs_mode
-#     la a1, Level_one_Page_Table_G
-#     li a2, 0x00
-#     li a3, 2
-#     li a4, 1                  # Host PTE setup
-#     jal pte_setup
-
-#     # Host L1 PTE setup
-#     la a0, vs_mode
-#     la a1, Level_zero_Page_Table_G
-#     li a2, 0x00
-#     li a3, 1
-#     li a4, 1                  # Host PTE setup
-#     jal pte_setup
-
-#     # Host L0 PTE setup
-#     la a0, vs_mode
-#     la a1, vs_mode
-#     li a2, 0xce
-#     li a3, 0
-#     li a4, 1                  # Host PTE setup
-#     jal pte_setup
-
-#     # Host L0 PTE setup
-#     la a0, vu_mode
-#     la a1, vu_mode
-#     li a2, 0xde
-#     li a3, 0
-#     li a4, 1                  # Host PTE setup
-#     jal pte_setup
-
-#     # Configure hstatus: Set SPV=1 (Virtualization enabled after sret)
-#     # hstatus.SPV is bit 7
-#     li t0, 0x80
-#     csrs hstatus, t0
-#     # Set SPP=1 in sstatus to return to S-mode (which becomes VS due to SPV=1)
-#     li t0, 0x100
-#     csrs sstatus, t0
-#     la t0, vs_mode
-#     csrw sepc, t0
-#     sret                    # Jump to VS-mode
-
-
-# hs_mode_exit:
-#     ecall
-#     j write_tohost
-
-# pte_setup:
-#     # virtual address
-#     srli t0, a0, 12            
-#     andi t1, t0, 0x1ff         # VPN[0] (9 bits)
-#     srli t0, t0, 9
-#     andi t2, t0, 0x1ff         # VPN[1]
-#     srli t3, t0, 9             # VPN[2]
-        
-#     # pte setup
-#     srli t4, a1, 12            # PPN
-#     slli t4, t4, 10         
-#     or   t4, t4, a2            # permissions
-#     ori  t4, t4, 1             # Valid 
-
-#     # wrting pte in root/L2 pt
-#     bnez a4, guest
-#     la s1, Root_Page_Table_H
-#     slli t5, t3, 3             # VP[2} * 8 
-#     add  t6, s1, t5            # root + VP[2]
-#     li   t0, 2
-#     beq  a3, t0, L2
-
-#     # wrting pte in L1 pt
-#     la s2, Level_one_Page_Table_H
-#     slli t5, t2, 3           # VP[2} * 8 
-#     add  t6, s2, t5          # L1 + VP[1]
-#     li   t0, 1
-#     beq  a3, t0, L1
-#     # wrting pte in L0 pt
-#     la s3, Level_zero_Page_Table_H
-#     slli t5, t1, 3
-#     add  t6, s3, t5
-#     sd   t4, 0(t6)
-#     ret
-
-# guest:
-#     la s1, Root_Page_Table_G
-#     slli t5, t3, 3             # VP[2} * 8 
-#     add  t6, s1, t5            # root + VP[2]
-#     li   t0, 2
-#     beq  a3, t0, L2
-
-#     # wrting pte in L1 pt
-#     la s2, Level_one_Page_Table_G
-#     slli t5, t2, 3           # VP[2} * 8 
-#     add  t6, s2, t5          # L1 + VP[1]
-#     li   t0, 1
-#     beq  a3, t0, L1
-#     # wrting pte in L0 pt
-#     la s3, Level_zero_Page_Table_G
-#     slli t5, t1, 3
-#     add  t6, s3, t5
-#     sd   t4, 0(t6)
-#     ret
-
-# L2:
-#     sd t4, 0(t6)
-#     ret
-# L1:
-#     sd t4, 0(t6)
-#     ret
-
-# pass:
-#     j write_tohost
-    
-# fail:
-#     la t1, base
-#     lw gp, 0(t1)
-#     la t0, tohost
-#     sw gp, 0(t0)              /* write to tohost 0xcafebeef on failure*/
-#     j fail
-  
-# write_tohost:
-#     li gp, 1
-#     la t0, tohost
-#     sw gp, 0(t0)              /* write to tohost 1 on success*/
-#     j write_tohost
-
-
-# # guest supervisor mode
-# .text
-# .align 12
-# vs_mode: 
-#     # Store test value 0xDEADBEEF at known address
-#     li t0, 0x80004088
-#     # slli t0, t0, 2
-#     li t1, 0xDEADBEEF
-#     sw t1, 0(t0)
-
-#     # Prepare transition to VU-mode
-#     # Clear sstatus.SPP (bit 8) to 0
-#     li t0, 0x100
-#     csrc sstatus, t0
-    
-#     la t0, vu_mode
-#     csrw sepc, t0
-#     sret                      # Jump to VU-mode (V=1, Priv=U)
-
-# vs_verify:
-#     li t0, 0x80004088
-#     # slli t0, t0, 2
-#     lw t1, 0(t0)             # sign extended 0xffffffffdeadbfef
-#     slli t1, t1, 32
-#     srli t1, t1, 32
-#     li t2, 0xDEADBFEF         # Expected modified value
-#     bne t1, t2, fail
-#     ecall
-
-# .text
-# .align 12
-# # guest user mode
-# vu_mode:
-#     li a0, 0x80004088            # Pass VS memory address in a0
-#     ecall                     # Traps to hs_trap_vector (scause = 8 or 10)
-#     j write_tohost
-
-# .align 12
-
-# .text                           # Defined in linker
-
-# # Hypervisor page tables
-# .align 14                       # 16KB alignment for root page table
-# Root_Page_Table_H:
-#     .space 16384                 # 8 bytes space per PTE for 2048(11bit VPN[2]) entries. (16k total size for root page table)
-# .align 12                       # 4Kb alignment
-# Level_one_Page_Table_H:
-#     .space 4096                 # 8 bytes space per PTE for 512 entries. (4k total size for L1 page table)
-# Level_zero_Page_Table_H:
-#     .space 4096                 # 8 bytes space prt PTE for 512 entries. (4k total size for L2 page table)
-# # Guest page tables
-# .align 12                       # 4KB alignment
-# Root_Page_Table_G:
-#     .space 4096                 # 8 bytes space per PTE for 512 entries. (4k total size for root page table)
-# Level_one_Page_Table_G:
-#     .space 4096                 # 8 bytes space per PTE for 512 entries. (4k total size for L1 page table)
-# Level_zero_Page_Table_G:
-#     .space 4096  
-
-# RVTEST_DATA_BEGIN
-# base:
-# .word 0xcafebeef     
-
 /*
  * test.S - RISC-V Hypervisor Extension Test
  *
  * Task: Two-Stage Address Translation and Guest Memory Access
  *
- * This test implements a full privilege hierarchy traversal:
+ * This test implements a full privilege transition:
  *   M-mode → HS-mode (Hypervisor Supervisor) → VS-mode (Virtual Supervisor) → VU-mode (Virtual User)
  * and exercises the RISC-V Hypervisor Extension (H-extension) features:
  *   - Two-stage address translation via vsatp (VS-stage) + hgatp (G-stage)
@@ -363,11 +18,6 @@
  * Mode transition sequence:
  *   M → HS → VS → VU → (ecall) → HS → VS → (ecall) → HS → (ecall) → M → done
  */
-
-/* ========================================================================
- * RVTEST macros: define .tohost/.fromhost symbols for the test harness
- * (Spike/pk reads tohost=1 as PASS, tohost=0xcafebeef... as FAIL)
- * ======================================================================== */
 #define RVTEST_DATA_BEGIN                                               \
         .pushsection .tohost,"aw",@progbits;                            \
         .align 6; .global tohost; tohost: .dword 0; .size tohost, 8;    \
@@ -459,11 +109,11 @@ hs_trap_vector:
     /* ----------------------------------------------------------------
      * Handle VU-mode ecall (scause = 8):
      * The VU-mode application passed the guest memory address in a0.
+     * Check a1 command code to determine what is the purpose of VU-mode ecall.
      * We use HLV.WU to read from it (through two-stage translation),
      * add 0x100, then use HSV.W to write the modified value back.
-     * ---------------------------------------------------------------- */
-
-    /* Set hstatus.SPVP = 1 (bit 8) so HLV/HSV use Supervisor privilege
+     * ---------------------------------------------------------------- 
+     * Set hstatus.SPVP = 1 (bit 8) so HLV/HSV use Supervisor privilege
      * for the virtual address translation of the guest access.
      * SPVP controls the effective privilege used for HLV/HSV instructions:
      *   0 = User privilege, 1 = Supervisor privilege
@@ -473,6 +123,21 @@ hs_trap_vector:
     or t1, t1, t2             /* set SPVP bit */
     csrw hstatus, t1          /* write updated hstatus */
 
+    li  t3, 1
+    li t4, 2
+    beq a1, t3, mem_access
+    beq a1, t4, fetch_vs_inst
+    j fail
+
+fetch_vs_inst:
+    hlvx.wu t2, (a0)
+    csrr t0, sepc
+    addi t0, t0, 4
+    csrw sepc, t0
+    sret
+
+mem_access:
+    /* command code a1 = 1 
     /* HLV.WU: Hypervisor Load Word Unsigned
      * Reads a 32-bit unsigned word from guest virtual address in a0.
      * Translation proceeds through VS-stage (vsatp) then G-stage (hgatp),
@@ -570,7 +235,7 @@ main:
     la a1, Root_Page_Table_G
     li a2, 0xde
     li a3, 0
-    li a4, 0                 /* NOTE: still uses pte_setup with a4=0 here
+    li a4, 0                 /* still uses pte_setup with a4=0 here
                                * because Root_Page_Table_G is set up before
                                * switching to guest mode */
     jal pte_setup
@@ -857,9 +522,7 @@ vs_verify:
     li t0, 0x80004088          /* guest virtual address of test value */
     /* Note: LW sign-extends. We use shift trick to zero-extend to 64 bits:
      *   t1 = (lw << 32) >> 32  ≡  zero-extend to 64-bit */
-    lw t1, 0(t0)               /* load 32-bit value (sign-extended: 0xFFFFFFFFDEADBFEF) */
-    slli t1, t1, 32            /* shift left 32 to clear upper 32 bits */
-    srli t1, t1, 32            /* logical shift right 32 → zero-extended: 0x00000000DEADBFEF */
+    lwu t1, 0(t0)               /* load 32-bit value (unsigned-zero-extended: 0x00000000DEADBFEF) */
     li t2, 0xDEADBFEF          /* expected: 0xDEADBEEF + 0x100 */
     bne t1, t2, fail           /* if mismatch, test fails */
     ecall                      /* VS-mode ecall → HS-mode (scause=10 in HS) */
@@ -876,8 +539,13 @@ vs_verify:
 .text
 .align 12                     /* 4KB alignment for VU-mode page */
 vu_mode:
+    la a0, vs_mode
+    li a1, 2                   /* command argument to verify execute instruction HLVX.WU */
+    ecall
     li a0, 0x80004088          /* a0 = guest VA where 0xDEADBEEF was stored */
+    li a1, 1                   /* a1 = mem_access (command code, purpose of ecall RW from mem) */
     ecall                      /* VU-mode ecall → HS-mode trap (scause=8) */
+
     j write_tohost             /* unreachable; HS redirects sepc to vs_verify */
 
 .align 12
