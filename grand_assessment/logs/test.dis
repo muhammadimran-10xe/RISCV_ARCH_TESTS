@@ -19,7 +19,7 @@ Disassembly of section .text.init:
     8000002c:	0062e2b3          	or	t0,t0,t1
     80000030:	68029073          	csrw	hgatp,t0
     80000034:	62000073          	hfence.gvma
-    80000038:	09c0006f          	j	800000d4 <main>
+    80000038:	0a80006f          	j	800000e0 <main>
 
 000000008000003c <m_trap_vector>:
     8000003c:	342022f3          	csrr	t0,mcause
@@ -28,49 +28,49 @@ Disassembly of section .text.init:
     80000048:	341023f3          	csrr	t2,mepc
     8000004c:	00438393          	addi	t2,t2,4
     80000050:	34139073          	csrw	mepc,t2
-    80000054:	30200073          	mret
+    80000054:	000022b7          	lui	t0,0x2
+    80000058:	8002829b          	addiw	t0,t0,-2048 # 1800 <_start-0x7fffe800>
+    8000005c:	3002a073          	csrs	mstatus,t0
+    80000060:	30200073          	mret
 
-0000000080000058 <hs_trap_vector>:
-    80000058:	142022f3          	csrr	t0,scause
-    8000005c:	00800313          	li	t1,8
-    80000060:	00a00393          	li	t2,10
-    80000064:	26728463          	beq	t0,t2,800002cc <hs_mode_exit>
-    80000068:	32629c63          	bne	t0,t1,800003a0 <fail>
-    8000006c:	10000313          	li	t1,256
-    80000070:	600023f3          	csrr	t2,hstatus
-    80000074:	00736333          	or	t1,t1,t2
-    80000078:	60031073          	csrw	hstatus,t1
-    8000007c:	00100e13          	li	t3,1
-    80000080:	00200e93          	li	t4,2
-    80000084:	03c58063          	beq	a1,t3,800000a4 <mem_access>
-    80000088:	01d58463          	beq	a1,t4,80000090 <fetch_vs_inst>
-    8000008c:	3140006f          	j	800003a0 <fail>
+0000000080000064 <hs_trap_vector>:
+    80000064:	142022f3          	csrr	t0,scause
+    80000068:	00800313          	li	t1,8
+    8000006c:	00a00393          	li	t2,10
+    80000070:	24728e63          	beq	t0,t2,800002cc <hs_mode_exit>
+    80000074:	32629663          	bne	t0,t1,800003a0 <fail>
+    80000078:	10000313          	li	t1,256
+    8000007c:	600023f3          	csrr	t2,hstatus
+    80000080:	00736333          	or	t1,t1,t2
+    80000084:	60031073          	csrw	hstatus,t1
+    80000088:	00100e13          	li	t3,1
+    8000008c:	00200e93          	li	t4,2
+    80000090:	03c58063          	beq	a1,t3,800000b0 <rw_vs_access>
+    80000094:	01d58463          	beq	a1,t4,8000009c <fetch_vs_inst>
+    80000098:	3080006f          	j	800003a0 <fail>
 
-0000000080000090 <fetch_vs_inst>:
-    80000090:	683543f3          	hlvx.wu	t2,(a0)
-    80000094:	141022f3          	csrr	t0,sepc
-    80000098:	00428293          	addi	t0,t0,4
-    8000009c:	14129073          	csrw	sepc,t0
-    800000a0:	10200073          	sret
+000000008000009c <fetch_vs_inst>:
+    8000009c:	683543f3          	hlvx.wu	t2,(a0)
+    800000a0:	141022f3          	csrr	t0,sepc
+    800000a4:	00428293          	addi	t0,t0,4
+    800000a8:	14129073          	csrw	sepc,t0
+    800000ac:	10200073          	sret
 
-00000000800000a4 <mem_access>:
-    800000a4:	681543f3          	hlv.wu	t2,(a0)
-    800000a8:	10000e13          	li	t3,256
-    800000ac:	01c383b3          	add	t2,t2,t3
-    800000b0:	6a754073          	hsv.w	t2,(a0)
-    800000b4:	00004297          	auipc	t0,0x4
-    800000b8:	f8828293          	addi	t0,t0,-120 # 8000403c <vs_verify>
-    800000bc:	14129073          	csrw	sepc,t0
-    800000c0:	10000293          	li	t0,256
-    800000c4:	1002a073          	csrs	sstatus,t0
-    800000c8:	08000293          	li	t0,128
-    800000cc:	6002a073          	csrs	hstatus,t0
-    800000d0:	10200073          	sret
+00000000800000b0 <rw_vs_access>:
+    800000b0:	681543f3          	hlv.wu	t2,(a0)
+    800000b4:	10000e13          	li	t3,256
+    800000b8:	01c383b3          	add	t2,t2,t3
+    800000bc:	6a754073          	hsv.w	t2,(a0)
+    800000c0:	00004297          	auipc	t0,0x4
+    800000c4:	f7c28293          	addi	t0,t0,-132 # 8000403c <vs_verify>
+    800000c8:	14129073          	csrw	sepc,t0
+    800000cc:	10000293          	li	t0,256
+    800000d0:	1002a073          	csrs	sstatus,t0
+    800000d4:	08000293          	li	t0,128
+    800000d8:	6002a073          	csrs	hstatus,t0
+    800000dc:	10200073          	sret
 
-00000000800000d4 <main>:
-    800000d4:	00000013          	nop
-    800000d8:	00000013          	nop
-    800000dc:	00000013          	nop
+00000000800000e0 <main>:
     800000e0:	00000013          	nop
     800000e4:	00000013          	nop
     800000e8:	00000013          	nop
@@ -148,7 +148,7 @@ Disassembly of section .text.init:
 
 0000000080000200 <hs_mode>:
     80000200:	00000297          	auipc	t0,0x0
-    80000204:	e5828293          	addi	t0,t0,-424 # 80000058 <hs_trap_vector>
+    80000204:	e6428293          	addi	t0,t0,-412 # 80000064 <hs_trap_vector>
     80000208:	10529073          	csrw	stvec,t0
     8000020c:	0000e297          	auipc	t0,0xe
     80000210:	df428293          	addi	t0,t0,-524 # 8000e000 <Root_Page_Table_G>
@@ -201,6 +201,8 @@ Disassembly of section .text.init:
 
 00000000800002cc <hs_mode_exit>:
     800002cc:	00000073          	ecall
+
+00000000800002d0 <m_mode>:
     800002d0:	0ec0006f          	j	800003bc <write_tohost>
 
 00000000800002d4 <pte_setup>:
@@ -285,9 +287,6 @@ Disassembly of section .text.init:
     800003dc:	00000013          	nop
     800003e0:	00000013          	nop
     800003e4:	00000013          	nop
-    800003e8:	00000013          	nop
-    800003ec:	00000013          	nop
-    800003f0:	00000013          	nop
 
 Disassembly of section .text:
 
@@ -1330,7 +1329,7 @@ Disassembly of section .text:
     8000501c:	08850513          	addi	a0,a0,136
     80005020:	00100593          	li	a1,1
     80005024:	00000073          	ecall
-    80005028:	b94fb06f          	j	800003bc <write_tohost>
+    80005028:	00000013          	nop
     8000502c:	00000013          	nop
     80005030:	00000013          	nop
     80005034:	00000013          	nop
@@ -6428,3 +6427,4 @@ Disassembly of section .text:
     80012f74:	00000013          	nop
     80012f78:	00000013          	nop
     80012f7c:	00000013          	nop
+    80012f80:	00000013          	nop

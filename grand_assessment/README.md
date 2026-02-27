@@ -1,13 +1,20 @@
-# RISC-V VM sv-32 paging test (Task 5)
+# Hypervisor Extension - Two-Stage Translation and Guest Memory Access (Grand Assessment)
 
 ## Overview
-This test verifies the correct implementation of RISC-V Virtual Memory paging, specifically the address translation mechanism using page tables. The objective of the test is to confirm that when virtual memory is enabled (via the satp register), instruction fetches, loads, and stores go through proper virtual-to-physical address translation according to the configured paging mode Sv32.
+ * This test implements a privilege transitions :
+ *   M-mode → HS-mode (Hypervisor Supervisor) → VS-mode (Virtual Supervisor) → VU-mode (Virtual User)
+ * and exercises the RISC-V Hypervisor Extension (H-extension) features:
+ *   - Two-stage address translation via vsatp (VS-stage) + hgatp (G-stage)
+ *   - HLV.WU  : Hypervisor Load  Word Unsigned — data read  from guest memory
+ *   - HSV.W   : Hypervisor Store Word          — data write to guest memory
+ *   - HLVX.WU : Hypervisor Load  Word Unsigned — instruction fetch from guest code 
+ *   - Trap delegation using medeleg (bits 8, 10, 12, 13, 15)
 
 ---
 
 ## File Structure
 ├── docs/
-| ├── muhammdimran_task5.pdf
+| ├── muhammdimran_grand_assessment.pdf
 ├── src/
 │ ├── test.S # Main assembly test
 │ └── link.ld # Linker script
@@ -43,8 +50,8 @@ make all
 
 ## Reference
 
-Sv32: Page-Based 32-bit Virtual-Memory Systems, Volume II: Privileged Architecture Sec 4.3
+Hypervisor Extension, Version 1.0: Privileged Architecture Sec 8
 
 ## Author
 Muhammad Imran
-Task 5 – RISC-V VM SV-32 Paging Scheme Test
+Grand Assessment – Hypervisor Extension - Two-Stage Translation and Guest Memory Access 
